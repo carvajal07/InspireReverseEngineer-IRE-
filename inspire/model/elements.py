@@ -171,6 +171,12 @@ class Module:
     # Estructura de datos del módulo
     fields: list[DataField] = field(default_factory=list)
 
+    # Nodos genuinamente creados por este módulo (DotName completo).
+    # En un DataTransformer provienen de <CreatedNodes>; es la señal real de
+    # creación de una variable, a diferencia del árbol de datos completo que
+    # cada módulo arrastra en su WorkFlowDefinition.
+    created_nodes: list[str] = field(default_factory=list)
+
     # Lógica funcional específica (según el tipo de módulo)
     transformations: list[Transformation] = field(default_factory=list)
     filter: Filter | None = None

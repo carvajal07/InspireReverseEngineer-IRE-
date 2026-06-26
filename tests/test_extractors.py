@@ -67,3 +67,27 @@ def test_script_module(workflow):
 def test_renamer(workflow):
     renames = _module(workflow, "Renombra").renames
     assert ("Records.TipoId", "Tipo") in renames
+
+
+def test_created_nodes_extracted(workflow):
+    mod = _module(workflow, "Calcula")
+    assert "Records.Contador" in mod.created_nodes
+
+
+def test_variable_created_in_single_module(workflow):
+    """'Contador' lo crea sólo 'Calcula' aunque el filtro lo re-declare."""
+
+    var = next(v for v in workflow.variables if v.name == "Contador")
+    assert var.created_in == {"Calcula"}
+    # El módulo que sólo lo arrastra (pass-through) NO debe figurar como creador.
+    assert "FiltraVariables" not in var.created_in
+
+
+def test_input_fields_created_in_input_module(workflow):
+    var = next(v for v in workflow.variables if v.name == "NumId")
+    assert "BasePortal" in var.created_in
+
+
+def test_param_created_in_param_module(workflow):
+    var = next(v for v in workflow.variables if v.name == "Cliente")
+    assert var.created_in == {"Parametros"}

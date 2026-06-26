@@ -80,6 +80,14 @@ def build_module(element: ET.Element) -> Module:
 
 @ExtractorRegistry.register(ModuleKind.DATA_TRANSFORMER.value)
 def _extract_transformer(element: ET.Element, module: Module) -> None:
+    # Nodos genuinamente creados por este transformer (señal real de creación).
+    created = element.find("CreatedNodes")
+    if created is not None:
+        for node in created.findall("CreatedNode"):
+            dot = node.get("FieldDotName", "")
+            if dot:
+                module.created_nodes.append(dot)
+
     container = element.find("Transformations")
     if container is None:
         return
