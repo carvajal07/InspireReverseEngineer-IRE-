@@ -25,9 +25,11 @@ de migración.
   - Parámetros, renombrados y agrupaciones.
 - **Analizadores semánticos**: dependencias, estadísticas, reglas y variables
   (sin uso, huérfanas, duplicadas, críticas).
-- **Generadores**: JSON, Markdown, Mermaid, GraphML, Excel/CSV y XML limpio.
+- **Generadores**: JSON, Markdown, Mermaid, GraphML, Excel/CSV, XML limpio,
+  **HTML** (portal navegable con búsqueda y filtros) y **PDF**.
 - **Sin dependencias obligatorias** (sólo librería estándar). `openpyxl` es
-  opcional para `.xlsx`; si falta, el Excel se degrada a CSV.
+  opcional para `.xlsx` (si falta, el Excel se degrada a CSV) y `reportlab`
+  para `.pdf` (si falta, ese formato se omite con un aviso).
 
 ---
 
@@ -61,7 +63,11 @@ ire proyecto.xml -o salida -f json -f markdown -f mermaid
 ```
 
 Formatos disponibles: `json`, `markdown`, `mermaid`, `graphml`, `cleanxml`,
-`excel`, `all`.
+`excel`, `html`, `pdf`, `all`.
+
+El **portal HTML** es un único archivo autocontenido: ábrelo en el navegador
+para buscar y filtrar módulos, variables y reglas, navegar entre módulos
+conectados y ver el diagrama de flujo. No necesita servidor.
 
 ### Como librería
 
@@ -138,10 +144,12 @@ pytest --cov=inspire --cov-report=term-missing   # con cobertura
 
 ## Hoja de ruta
 
-- Buscador y comparador de versiones de Workflow.
-- Visualizador web navegable (HTML) y exportación a PDF.
+- Comparador de versiones de Workflow (reglas/variables nuevas, eliminadas, cambios).
 - Exportadores parciales a Python / Java.
 - API REST para procesar XML por HTTP.
+
+> El **buscador** ya está disponible dentro del portal HTML. El **visualizador
+> web** (HTML navegable) y la **exportación a PDF** ya están implementados.
 
 ---
 

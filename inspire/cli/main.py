@@ -12,9 +12,11 @@ from inspire.generators import (
     CleanXmlGenerator,
     ExcelGenerator,
     GraphMLGenerator,
+    HtmlGenerator,
     JsonGenerator,
     MarkdownGenerator,
     MermaidGenerator,
+    PdfGenerator,
 )
 from inspire.parser import WorkflowParser
 
@@ -26,6 +28,8 @@ _GENERATORS = {
     "graphml": (".graphml", GraphMLGenerator),
     "cleanxml": (".clean.xml", CleanXmlGenerator),
     "excel": (".xlsx", ExcelGenerator),
+    "html": (".html", HtmlGenerator),
+    "pdf": (".pdf", PdfGenerator),
 }
 
 
@@ -99,13 +103,19 @@ def main(argv: list[str] | None = None) -> int:
     stem = workflow.name or xml_path.stem
 
     print(f"\nGenerando artefactos en {out_dir}/ ...")
+    failures = 0
     for fmt in formats:
         ext, factory = _GENERATORS[fmt]
         target = out_dir / f"{stem}{ext}"
-        result = factory().write(workflow, target)
+        try:
+            result = factory().write(workflow, target)
+        except Exception as exc:  # noqa: BLE001 - un generador no debe abortar el resto
+            failures += 1
+            print(f"  [{fmt:9}] OMITIDO: {exc}", file=sys.stderr)
+            continue
         print(f"  [{fmt:9}] {result}")
 
-    print("\nListo.")
+    print("\nListo." if not failures else f"\nListo (con {failures} omitido(s)).")
     return 0
 
 

@@ -9,6 +9,8 @@ from inspire.generators.mermaid_gen import MermaidGenerator
 from inspire.generators.graphml_gen import GraphMLGenerator
 from inspire.generators.cleanxml_gen import CleanXmlGenerator
 from inspire.generators.excel_gen import ExcelGenerator
+from inspire.generators.html_gen import HtmlGenerator
+from inspire.generators.pdf_gen import PdfGenerator
 
 __all__ = [
     "JsonGenerator",
@@ -17,4 +19,6 @@ __all__ = [
     "GraphMLGenerator",
     "CleanXmlGenerator",
     "ExcelGenerator",
+    "HtmlGenerator",
+    "PdfGenerator",
 ]

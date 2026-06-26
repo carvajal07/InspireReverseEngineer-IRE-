@@ -1,6 +1,9 @@
 # Núcleo: IRE funciona sólo con la librería estándar de Python.
+# (JSON, Markdown, Mermaid, GraphML, HTML y XML limpio no requieren nada extra.)
+#
 # Dependencias opcionales para funcionalidades extra:
-openpyxl>=3.1   # generación de Excel (.xlsx); sin ella se degrada a CSV
+openpyxl>=3.1    # generación de Excel (.xlsx); sin ella se degrada a CSV
+reportlab>=4.0   # generación de PDF; sin ella el formato 'pdf' se omite
 
 # Desarrollo / pruebas:
 pytest>=7.4
