@@ -1,0 +1,150 @@
+# Inspire Reverse Engineer (IRE)
+
+**IRE** es una herramienta en Python para hacer ingeniería inversa de proyectos
+exportados desde **Quadient Inspire Designer**. Carga un XML del *Workflow*,
+separa la información del diseñador de la lógica de negocio, reconstruye un
+**modelo interno independiente** y genera documentación, análisis y artefactos
+de migración.
+
+> El objetivo no es limpiar un XML, sino construir un motor de análisis capaz de
+> interpretar la lógica del Workflow.
+
+---
+
+## Características
+
+- **Parser tolerante** de XML de Inspire (probado con proyectos de >8 MB).
+- **Modelo interno** (AST) tipado que es la única fuente de verdad: ningún
+  generador vuelve a leer el XML.
+- **Extracción de lógica funcional**:
+  - Transformaciones (FCV: `ScriptFCV`, `ConcatStrFCV`, `StackFCV`, `BT2BTFCV`,
+    `ConvNumFCV`, `IntIncrFCV`).
+  - Filtros y condiciones.
+  - Cruces (Join) y Lookups.
+  - Scripts embebidos (con detección de variables leídas/escritas).
+  - Parámetros, renombrados y agrupaciones.
+- **Analizadores semánticos**: dependencias, estadísticas, reglas y variables
+  (sin uso, huérfanas, duplicadas, críticas).
+- **Generadores**: JSON, Markdown, Mermaid, GraphML, Excel/CSV y XML limpio.
+- **Sin dependencias obligatorias** (sólo librería estándar). `openpyxl` es
+  opcional para `.xlsx`; si falta, el Excel se degrada a CSV.
+
+---
+
+## Instalación
+
+```bash
+# Sólo núcleo (sin dependencias)
+pip install -e .
+
+# Con soporte de Excel y herramientas de desarrollo
+pip install -e ".[dev]"
+```
+
+Requiere Python 3.10+.
+
+---
+
+## Uso
+
+### Línea de comandos
+
+```bash
+# Genera todos los artefactos en ./output
+ire proyecto.xml
+
+# Sólo estadísticas
+ire proyecto.xml --stats-only
+
+# Formatos concretos y directorio de salida
+ire proyecto.xml -o salida -f json -f markdown -f mermaid
+```
+
+Formatos disponibles: `json`, `markdown`, `mermaid`, `graphml`, `cleanxml`,
+`excel`, `all`.
+
+### Como librería
+
+```python
+from inspire import parse_workflow, analyze
+from inspire.generators import JsonGenerator, MarkdownGenerator
+
+workflow = parse_workflow("proyecto.xml")
+result = analyze(workflow)            # estadísticas, dependencias, reglas, variables
+
+print(workflow.statistics.as_dict())
+JsonGenerator().write(workflow, "salida/proyecto.json")
+MarkdownGenerator().write(workflow, "salida/proyecto.md")
+
+# Variables sin uso detectadas por el análisis
+print(result.variables.unused)
+```
+
+---
+
+## Arquitectura
+
+```
+XML Inspire → XML Loader → XML Parser → AST (Modelo Interno)
+                                          │
+                              Semantic Analyzers
+                                          │
+                    ┌───────────┬─────────┴────────┬──────────┐
+                  JSON      Markdown            Mermaid     GraphML
+                  Excel    XML limpio
+```
+
+### Estructura del código
+
+```
+inspire/
+    parser/       Carga y parseo del XML hacia el modelo
+    model/        Modelo interno (Workflow, Module, Variable, ...)
+    extractors/   Extracción de lógica por tipo de módulo (+ FCV, scripts)
+    analyzers/    Dependencias, estadísticas, reglas, variables
+    generators/   JSON, Markdown, Mermaid, GraphML, Excel, XML limpio
+    cli/          Interfaz de línea de comandos
+tests/            Suite de pruebas (cobertura > 90%)
+docs/             Documentación de arquitectura
+examples/         Ejemplos de uso
+```
+
+---
+
+## Tipos de módulo soportados
+
+| Categoría     | Módulos |
+| ------------- | ------- |
+| Entradas      | `DataInput`, `ParamInput`, `ScriptDataInput` |
+| Transformación| `DataTransformer`, `DataRemapper`, `Renamer`, `DataConcatenator` |
+| Control       | `DataFilter` |
+| Integración   | `CustCode` (Join/Lookup), `DataMerger`, `DataSorter`, `DataGroupBy`, `DataUnGroup`, `DataAdd`, `DataCacher`, `DataRepeater` |
+| Scripts       | `ScriptedSheeter` |
+| Salidas       | `DataOutput`, `AdvDataOutput` |
+
+Añadir un nuevo tipo es registrar una función con
+`@ExtractorRegistry.register("MiTag")` en `inspire/extractors/registry.py`.
+
+---
+
+## Desarrollo
+
+```bash
+pytest                              # ejecutar pruebas
+pytest --cov=inspire --cov-report=term-missing   # con cobertura
+```
+
+---
+
+## Hoja de ruta
+
+- Buscador y comparador de versiones de Workflow.
+- Visualizador web navegable (HTML) y exportación a PDF.
+- Exportadores parciales a Python / Java.
+- API REST para procesar XML por HTTP.
+
+---
+
+## Licencia
+
+MIT.

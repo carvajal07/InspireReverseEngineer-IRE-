@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inspire-reverse-engineer"
+version = "0.1.0"
+description = "Ingeniería inversa de workflows de Quadient Inspire Designer."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "IRE" }]
+keywords = ["quadient", "inspire", "reverse-engineering", "workflow", "xml"]
+
+dependencies = []
+
+[project.optional-dependencies]
+excel = ["openpyxl>=3.1"]
+dev = ["pytest>=7.4", "pytest-cov>=4.1", "openpyxl>=3.1"]
+
+[project.scripts]
+ire = "inspire.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["inspire*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["inspire"]
