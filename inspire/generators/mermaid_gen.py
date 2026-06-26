@@ -25,7 +25,22 @@ def _safe_id(raw: str) -> str:
 
 
 def _label(text: str) -> str:
-    return text.replace('"', "'").replace("\n", " ")
+    """Escapa el texto para usarlo dentro de una etiqueta Mermaid.
+
+    Mermaid interpreta el contenido de las etiquetas como HTML, por lo que
+    caracteres como ``&`` (p.ej. en ``AsignaEmail&Politicas``), ``<``, ``>`` o
+    las comillas rompen el diagrama si no se escapan como entidades. Las
+    etiquetas estructurales ``<br/>``/``<small>`` se añaden fuera de esta
+    función, por lo que no se ven afectadas.
+    """
+
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("\n", " ")
+    )
 
 
 class MermaidGenerator:
@@ -41,7 +56,7 @@ class MermaidGenerator:
             open_b, close_b = _SHAPE.get(module.category, ("[", "]"))
             lines.append(
                 f'    {node_id}{open_b}"{_label(module.name)}<br/>'
-                f'<small>{module.kind}</small>"{close_b}'
+                f'{_label(module.kind)}"{close_b}'
             )
         for conn in workflow.connections:
             if conn.from_id and conn.to_id:
