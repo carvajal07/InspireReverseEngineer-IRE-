@@ -1,0 +1,28 @@
+# Artefactos generados
+/output/*
+!/output/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Pruebas / cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Entornos
+.venv/
+venv/
+env/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
