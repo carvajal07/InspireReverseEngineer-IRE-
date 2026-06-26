@@ -5,13 +5,17 @@ from __future__ import annotations
 import json
 import xml.etree.ElementTree as ET
 
+import pytest
+
 from inspire.generators import (
     CleanXmlGenerator,
     ExcelGenerator,
     GraphMLGenerator,
+    HtmlGenerator,
     JsonGenerator,
     MarkdownGenerator,
     MermaidGenerator,
+    PdfGenerator,
 )
 
 
@@ -64,6 +68,41 @@ def test_excel_writes_files(workflow, tmp_path):
     else:
         # En modo CSV se generan varios archivos.
         assert list(tmp_path.glob("out_*.csv"))
+
+
+def test_html_is_self_contained(workflow):
+    html = HtmlGenerator().render(workflow)
+    assert html.startswith("<!DOCTYPE html>")
+    # Datos embebidos (sin servidor) y app de búsqueda.
+    assert 'id="ire-data"' in html
+    assert "Calcula" in html
+    # No debe requerir recursos locales externos.
+    assert 'src="http' not in html or "mermaid" in html
+
+
+def test_html_embeds_valid_json(workflow):
+    import json
+    import re
+
+    html = HtmlGenerator().render(workflow)
+    match = re.search(
+        r'<script type="application/json" id="ire-data">(.*?)</script>',
+        html,
+        re.S,
+    )
+    assert match is not None
+    payload = json.loads(match.group(1).replace("<\\/", "</"))
+    assert len(payload["modules"]) == len(workflow.modules)
+    assert "rules" in payload and "variable_report" in payload
+
+
+def test_pdf_generation(workflow, tmp_path):
+    gen = PdfGenerator()
+    if not gen.available:
+        pytest.skip("reportlab no instalado")
+    out = gen.write(workflow, tmp_path / "wf.pdf")
+    assert out.exists()
+    assert out.read_bytes().startswith(b"%PDF-")
 
 
 def test_all_generators_write(workflow, tmp_path):
