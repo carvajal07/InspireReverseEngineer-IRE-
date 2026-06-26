@@ -41,6 +41,11 @@ class StatisticsAnalyzer:
         )
         stats.inputs = by_category.get(ModuleCategory.INPUT.value, 0)
         stats.outputs = by_category.get(ModuleCategory.OUTPUT.value, 0)
+        stats.variables_in_layout = sum(
+            1 for v in workflow.variables if v.used_in_layout
+        )
+        if workflow.layout is not None:
+            stats.layout_pages = len(workflow.layout.pages)
         stats.by_kind = dict(by_kind.most_common())
         stats.by_category = dict(by_category.most_common())
 

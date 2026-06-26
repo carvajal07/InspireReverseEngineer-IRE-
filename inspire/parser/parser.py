@@ -18,17 +18,18 @@ class WorkflowParser:
     def __init__(self, *, loader: XmlLoader | None = None) -> None:
         self.loader = loader or XmlLoader()
 
-    def parse_file(self, path: str | Path):
-        from inspire.model.workflow import Workflow  # import diferido
-
+    def parse_file(self, path: str | Path, *, layout_path: str | Path | None = None):
         root = self.loader.load(path)
         workflow = self._build(root)
         workflow.source_file = str(path)
         workflow.name = Path(path).stem
+        self._attach_layout(workflow, root, layout_path)
         return workflow
 
-    def parse_root(self, root: ET.Element):
-        return self._build(root)
+    def parse_root(self, root: ET.Element, *, layout_path: str | Path | None = None):
+        workflow = self._build(root)
+        self._attach_layout(workflow, root, layout_path)
+        return workflow
 
     # ------------------------------------------------------------------
 
@@ -56,6 +57,40 @@ class WorkflowParser:
         """Heurística: un módulo tiene Id o Name."""
 
         return element.find("Id") is not None or element.find("Name") is not None
+
+    @staticmethod
+    def _attach_layout(
+        workflow, root: ET.Element, layout_path: str | Path | None
+    ) -> None:
+        """Analiza el diseño (Layout) y marca qué variables se usan en él.
+
+        Se buscan los módulos ``<Layout>`` en el propio XML de entrada (o en un
+        archivo de layout aparte si se indica ``layout_path``). Cada variable del
+        modelo de datos se marca por su nombre hoja: si una hoja del diseño usa
+        ``Ord.Records.NumCrediRotativo``, la variable ``NumCrediRotativo`` queda
+        marcada como usada en diseño, con sus páginas y rutas.
+        """
+
+        from inspire.analyzers.layout import LayoutAnalyzer
+
+        analyzer = LayoutAnalyzer()
+        report = (
+            analyzer.analyze_file(layout_path)
+            if layout_path
+            else analyzer.analyze_root(root)
+        )
+        workflow.layout = report
+        if not report.found_layout:
+            return
+
+        index = workflow.variable_index  # nombre hoja -> Variable
+        for usage in report.usages:
+            var = index.get(usage.leaf)
+            if var is None:
+                continue  # variable de diseño no presente en el flujo de datos
+            var.used_in_layout = True
+            var.layout_pages.add(f"{usage.module} / {usage.page}")
+            var.layout_paths.add(usage.path)
 
     @staticmethod
     def _connection(element: ET.Element) -> Connection:

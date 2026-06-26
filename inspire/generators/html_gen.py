@@ -134,6 +134,24 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .hidden { display: none; }
   a { color: var(--accent); cursor: pointer; text-decoration: none; }
   .count { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .tag-design { background: var(--integration); color:#0f172a; border-radius:6px;
+                padding:1px 6px; font-size:11px; font-weight:600; }
+  .tag-nodesign { color: var(--muted); font-size:11px; }
+  /* Modal de linaje de variable */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display:none;
+             align-items:center; justify-content:center; z-index:50; }
+  .overlay.show { display:flex; }
+  .modal { background: var(--bg); border:1px solid var(--border); border-radius:12px;
+           width: min(1100px, 94vw); height: min(86vh, 900px); display:flex; flex-direction:column;
+           box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .modal-head { display:flex; align-items:center; gap:12px; padding:12px 18px;
+                border-bottom:1px solid var(--border); }
+  .modal-head h2 { margin:0; font-size:16px; }
+  .modal-close { margin-left:auto; cursor:pointer; font-size:22px; color:var(--muted);
+                 background:none; border:none; }
+  .modal-body { padding:16px 18px; overflow:auto; }
+  .legend span { font-size:11px; margin-right:12px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }
 </style>
 </head>
 <body>
@@ -161,7 +179,10 @@ _TEMPLATE = r"""<!DOCTYPE html>
 </div>
 
 <div id="view-variables" class="hidden">
-  <div class="toolbar"><input id="searchVar" placeholder="Buscar variables..."></div>
+  <div class="toolbar">
+    <input id="searchVar" placeholder="Buscar variables...">
+    <label class="chip" style="cursor:pointer"><input type="checkbox" id="filterDesign"> solo usadas en diseño</label>
+  </div>
   <div class="detail" id="variablesView"></div>
 </div>
 
@@ -172,6 +193,23 @@ _TEMPLATE = r"""<!DOCTYPE html>
 
 <div id="view-diagram" class="hidden">
   <div class="detail" id="diagramView"></div>
+</div>
+
+<div class="overlay" id="lineageOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="lineageTitle">Linaje de variable</h2>
+      <span class="legend">
+        <span><span class="dot" style="background:#16a34a"></span>Crea</span>
+        <span><span class="dot" style="background:#fbbf24"></span>Modifica</span>
+        <span><span class="dot" style="background:#38bdf8"></span>Usa</span>
+        <span><span class="dot" style="background:#64748b"></span>Tránsito</span>
+        <span><span class="dot" style="background:#c084fc"></span>Diseño</span>
+      </span>
+      <button class="modal-close" id="lineageClose">&times;</button>
+    </div>
+    <div class="modal-body" id="lineageBody"></div>
+  </div>
 </div>
 
 <script type="application/json" id="ire-data">__DATA__</script>
@@ -279,6 +317,15 @@ function tbl(head, rows){
 document.getElementById('search').oninput = renderModuleList;
 
 // ---- Variables ----
+const VAR_BY_NAME = {}; DATA.variables.forEach(v => VAR_BY_NAME[v.name] = v);
+const HAS_LAYOUT = !!(DATA.layout && DATA.layout.usages && DATA.layout.usages.length);
+function designCell(v) {
+  if (v.used_in_layout) {
+    const n = (v.layout_pages||[]).length;
+    return `<span class="tag-design">Sí${n?` · ${n} pág`:''}</span>`;
+  }
+  return HAS_LAYOUT ? '<span class="tag-nodesign">No</span>' : '<span class="tag-nodesign">—</span>';
+}
 function renderVariables() {
   const q = document.getElementById('searchVar').value.trim().toLowerCase();
   const rep = DATA.variable_report || {};
@@ -287,15 +334,107 @@ function renderVariables() {
     rep.orphan&&rep.orphan.includes(n)?'<span class="pill">huérfana</span>':'',
     rep.critical&&rep.critical.includes(n)?'<span class="pill">crítica</span>':'',
   ].join('');
-  const vars = DATA.variables.filter(v => !q || v.name.toLowerCase().includes(q));
+  const onlyDesign = document.getElementById('filterDesign').checked;
+  let vars = DATA.variables.filter(v => !q || v.name.toLowerCase().includes(q));
+  if (onlyDesign) vars = vars.filter(v => v.used_in_layout);
+  const inDesign = DATA.variables.filter(v => v.used_in_layout).length;
+  const rows = vars.map(v =>
+    `<tr><td><a data-var="${esc(v.name)}">${esc(v.name)}</a></td>`+
+    `<td>${esc(v.type)}</td><td>${esc(v.created_in.join(', '))}</td>`+
+    `<td>${esc(v.modified_in.join(', '))}</td><td>${esc(v.used_in.join(', '))}</td>`+
+    `<td>${designCell(v)}</td><td>${flag(v.name)}</td></tr>`).join('');
   document.getElementById('variablesView').innerHTML =
     `<div class="count">${vars.length} variables · ${(rep.unused||[]).length} sin uso · `+
-    `${(rep.critical||[]).length} críticas</div>` +
-    tbl(['Variable','Tipo','Creada','Modificada','Usada','Estado'],
-      vars.map(v => [v.name, v.type, v.created_in.join(', '), v.modified_in.join(', '),
-        v.used_in.join(', '), flag(v.name)])).replace(/&lt;span/g,'<span').replace(/span&gt;/g,'span>');
+    `${(rep.critical||[]).length} críticas`+(HAS_LAYOUT?` · ${inDesign} en diseño`:'')+
+    ` &nbsp; <em>(clic en una variable para ver su recorrido)</em></div>`+
+    `<table><thead><tr>`+
+    ['Variable','Tipo','Creada','Modificada','Usada','Diseño','Estado']
+      .map(h=>`<th>${h}</th>`).join('')+
+    `</tr></thead><tbody>${rows}</tbody></table>`;
+  document.querySelectorAll('#variablesView a[data-var]').forEach(a =>
+    a.onclick = () => openLineage(a.dataset.var));
 }
 document.getElementById('searchVar').oninput = renderVariables;
+document.getElementById('filterDesign').onchange = renderVariables;
+
+// ---- Linaje de variable (grafo de recorrido) ----
+function safeId(s){ return 'v_'+String(s).replace(/\W/g,'_'); }
+function buildLineageMermaid(v) {
+  const nameToIds = {}; DATA.modules.forEach(m => (nameToIds[m.name]=nameToIds[m.name]||[]).push(m.id));
+  const idName = {}; DATA.modules.forEach(m => idName[m.id]=m.name);
+  const role = {};
+  const setRole = (names, r) => (names||[]).forEach(n =>
+    (nameToIds[n]||[]).forEach(id => { if (!role[id]) role[id]=r; }));
+  setRole(v.created_in, 'crea');
+  setRole(v.modified_in, 'modifica');
+  setRole(v.used_in, 'usa');
+  const R = Object.keys(role);
+  const adj = {}; DATA.connections.forEach(c => (adj[c.from]=adj[c.from]||[]).push(c.to));
+  // Nodos de tránsito: caminos más cortos de un creador a cada destino.
+  const creators = R.filter(id => role[id]==='crea');
+  const targets = new Set(R.filter(id => role[id]!=='crea'));
+  const transit = new Set();
+  creators.forEach(src => {
+    const prev = {}, q=[src], seen=new Set([src]);
+    while (q.length) { const n=q.shift();
+      (adj[n]||[]).forEach(nx => { if(!seen.has(nx)){ seen.add(nx); prev[nx]=n; q.push(nx);} }); }
+    targets.forEach(t => { if (prev[t]!==undefined) { let cur=prev[t];
+      while (cur!==undefined && cur!==src) { if(!role[cur]) transit.add(cur); cur=prev[cur]; } } });
+  });
+  let nodes = [...new Set([...R, ...transit])];
+  let capped = false;
+  if (nodes.length > 80) { nodes = R.slice(0, 80); capped = true; }
+  const nodeSet = new Set(nodes);
+  const styleByRole = {crea:'crea', modifica:'modifica', usa:'usa', transito:'transito'};
+  const lines = ['flowchart LR'];
+  lines.push('classDef crea fill:#16a34a,stroke:#14532d,color:#fff;');
+  lines.push('classDef modifica fill:#fbbf24,stroke:#92400e,color:#1f2937;');
+  lines.push('classDef usa fill:#38bdf8,stroke:#075985,color:#06283d;');
+  lines.push('classDef transito fill:#475569,stroke:#1e293b,color:#e2e8f0;');
+  lines.push('classDef design fill:#c084fc,stroke:#6b21a8,color:#2e1065;');
+  nodes.forEach(id => {
+    const r = role[id] || 'transito';
+    lines.push(`${safeId(id)}["${esc(idName[id]||id)}<br/>${r}"]:::${styleByRole[r]}`);
+  });
+  DATA.connections.forEach(c => {
+    if (nodeSet.has(c.from) && nodeSet.has(c.to))
+      lines.push(`${safeId(c.from)} --> ${safeId(c.to)}`);
+  });
+  if (v.used_in_layout) {
+    const np = (v.layout_pages||[]).length;
+    lines.push(`DESIGN(["Diseño / Layout<br/>${np} página(s)"]):::design`);
+    const sources = creators.length ? creators : R;
+    sources.filter(id => nodeSet.has(id)).forEach(id =>
+      lines.push(`${safeId(id)} -.-> DESIGN`));
+  }
+  return {src: lines.join('\n'), capped, count: nodes.length};
+}
+function openLineage(name) {
+  const v = VAR_BY_NAME[name]; if (!v) return;
+  document.getElementById('lineageTitle').textContent = 'Linaje: ' + name;
+  const created = (v.created_in||[]).join(', ') || '—';
+  const modified = (v.modified_in||[]).join(', ') || '—';
+  const used = (v.used_in||[]).join(', ') || '—';
+  const design = v.used_in_layout
+    ? `<b>Diseño:</b> ${esc((v.layout_pages||[]).join('; '))}<br>`+
+      `<b>Rutas:</b> <code>${esc((v.layout_paths||[]).join('</code>, <code>'))}</code>`
+    : '<b>Diseño:</b> no se usa en el diseño';
+  const {src, capped, count} = buildLineageMermaid(v);
+  document.getElementById('lineageBody').innerHTML =
+    `<div class="count" style="margin-bottom:8px">Tipo: ${esc(v.type||'-')} · `+
+    `Crea: ${esc(created)} · Modifica: ${esc(modified)} · Usa: ${esc(used)}</div>`+
+    `<div style="margin-bottom:10px">${design}</div>`+
+    (capped?`<div class="count">Grafo grande: mostrando ${count} nodos.</div>`:'')+
+    `<div id="lineageGraph"><div class="count">Renderizando…</div></div>`+
+    `<details style="margin-top:10px"><summary>Ver código Mermaid</summary><pre>${esc(src)}</pre></details>`;
+  document.getElementById('lineageOverlay').classList.add('show');
+  renderMermaidInto('lineageGraph', src, 'Usa el código de abajo.');
+}
+document.getElementById('lineageClose').onclick = () =>
+  document.getElementById('lineageOverlay').classList.remove('show');
+document.getElementById('lineageOverlay').onclick = (e) => {
+  if (e.target.id === 'lineageOverlay') e.target.classList.remove('show');
+};
 
 // ---- Reglas ----
 function renderRules() {
@@ -308,6 +447,34 @@ function renderRules() {
 }
 document.getElementById('searchRule').oninput = renderRules;
 
+// ---- Carga de Mermaid (compartida por diagrama y linaje) ----
+let mermaidPromise = null;
+function ensureMermaid() {
+  if (mermaidPromise) return mermaidPromise;
+  mermaidPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+    s.onload = () => {
+      // maxEdges alto: los workflows grandes superan el límite de 500 de Mermaid.
+      mermaid.initialize({startOnLoad:false, theme:'dark', maxEdges:100000});
+      resolve(mermaid);
+    };
+    s.onerror = () => reject(new Error('sin conexión'));
+    document.body.appendChild(s);
+  });
+  return mermaidPromise;
+}
+async function renderMermaidInto(elId, src, fallbackMsg) {
+  const el = document.getElementById(elId);
+  try {
+    const m = await ensureMermaid();
+    const {svg} = await m.render(elId+'_svg', src);
+    el.innerHTML = svg;
+  } catch(e) {
+    el.innerHTML = '<div class="count">No se pudo renderizar ('+e+'). '+(fallbackMsg||'')+'</div>';
+  }
+}
+
 // ---- Diagrama ----
 let diagramRendered = false;
 function renderDiagram() {
@@ -315,25 +482,10 @@ function renderDiagram() {
   diagramRendered = true;
   const el = document.getElementById('diagramView');
   el.innerHTML = `<div class="section"><h3>Diagrama de flujo</h3>
-    <div class="mermaid" id="mmd">${esc(DATA.mermaid)}</div>
+    <div id="mmd"><div class="count">Renderizando…</div></div>
     <details style="margin-top:12px"><summary>Ver código Mermaid</summary>
     <pre>${esc(DATA.mermaid)}</pre></details></div>`;
-  const s = document.createElement('script');
-  s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
-  s.onload = () => { try {
-    // maxEdges alto: los workflows grandes superan el límite de 500 de Mermaid.
-    mermaid.initialize({startOnLoad:false, theme:'dark', maxEdges:100000});
-    mermaid.run({nodes:[document.getElementById('mmd')]}).catch(err => {
-      document.getElementById('mmd').innerHTML =
-        '<div class="count">No se pudo renderizar: '+err+'. Usa el código de abajo.</div>';
-    });
-  } catch(e){
-    document.getElementById('mmd').innerHTML =
-      '<div class="count">No se pudo renderizar: '+e+'. Usa el código de abajo.</div>';
-  } };
-  s.onerror = () => { document.getElementById('mmd').innerHTML =
-    '<div class="count">Sin conexión para renderizar; usa el código de abajo.</div>'; };
-  document.body.appendChild(s);
+  renderMermaidInto('mmd', DATA.mermaid, 'Usa el código de abajo.');
 }
 
 // ---- Init ----

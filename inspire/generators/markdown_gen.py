@@ -80,14 +80,25 @@ class MarkdownGenerator:
     def _variables(self, workflow: Workflow, out) -> None:
         if not workflow.variables:
             return
+        has_layout = workflow.layout is not None and workflow.layout.found_layout
         out("## Variables\n")
-        out("| Variable | Tipo | Creada en | Modificada en | Usada en |")
-        out("| --- | --- | --- | --- | --- |")
-        for v in workflow.variables:
-            out(
-                f"| {v.name} | {v.type or '-'} | "
-                f"{len(v.created_in)} | {len(v.modified_in)} | {len(v.used_in)} |"
-            )
+        if has_layout:
+            out("| Variable | Tipo | Creada en | Modificada en | Usada en | En diseño |")
+            out("| --- | --- | --- | --- | --- | --- |")
+            for v in workflow.variables:
+                design = "Sí" if v.used_in_layout else "No"
+                out(
+                    f"| {v.name} | {v.type or '-'} | {len(v.created_in)} | "
+                    f"{len(v.modified_in)} | {len(v.used_in)} | {design} |"
+                )
+        else:
+            out("| Variable | Tipo | Creada en | Modificada en | Usada en |")
+            out("| --- | --- | --- | --- | --- |")
+            for v in workflow.variables:
+                out(
+                    f"| {v.name} | {v.type or '-'} | "
+                    f"{len(v.created_in)} | {len(v.modified_in)} | {len(v.used_in)} |"
+                )
         out("")
 
     def _rules(self, workflow: Workflow, out) -> None:

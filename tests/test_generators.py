@@ -71,6 +71,15 @@ def test_html_raises_mermaid_edge_limit(workflow):
     assert "maxEdges" in html
 
 
+def test_html_has_design_column_and_lineage(workflow):
+    html = HtmlGenerator().render(workflow)
+    # Columna de diseño y modal/funciones de linaje de variable.
+    assert "Diseño" in html
+    assert "used_in_layout" in html
+    assert "buildLineageMermaid" in html
+    assert "lineageOverlay" in html
+
+
 def test_graphml_is_valid_xml(workflow):
     xml = GraphMLGenerator().render(workflow)
     root = ET.fromstring(xml)

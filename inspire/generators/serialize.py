@@ -113,13 +113,16 @@ def variable_to_dict(v: Variable) -> dict[str, object]:
         "created_in": sorted(v.created_in),
         "modified_in": sorted(v.modified_in),
         "used_in": sorted(v.used_in),
+        "used_in_layout": v.used_in_layout,
+        "layout_pages": sorted(v.layout_pages),
+        "layout_paths": sorted(v.layout_paths),
         "is_unused": v.is_unused,
         "is_orphan": v.is_orphan,
     }
 
 
 def workflow_to_dict(workflow: Workflow) -> dict[str, object]:
-    return {
+    data: dict[str, object] = {
         "name": workflow.name,
         "version": workflow.version,
         "source_file": workflow.source_file,
@@ -144,3 +147,20 @@ def workflow_to_dict(workflow: Workflow) -> dict[str, object]:
             for d in workflow.dependencies
         ],
     }
+    layout = workflow.layout
+    if layout is not None and layout.found_layout:
+        data["layout"] = {
+            "modules": layout.modules,
+            "pages": [{"module": m, "page": p} for m, p in layout.pages],
+            "usages": [
+                {
+                    "module": u.module,
+                    "page": u.page,
+                    "path": u.path,
+                    "leaf": u.leaf,
+                    "origin": u.origin,
+                }
+                for u in layout.usages
+            ],
+        }
+    return data

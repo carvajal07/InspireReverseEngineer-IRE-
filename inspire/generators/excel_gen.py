@@ -27,7 +27,8 @@ class ExcelGenerator:
         rules = RuleAnalyzer().analyze(workflow).rules
 
         variables = (
-            ["Variable", "Tipo", "Creada en", "Modificada en", "Usada en"],
+            ["Variable", "Tipo", "Creada en", "Modificada en", "Usada en",
+             "En diseño", "Páginas diseño"],
             [
                 [
                     v.name,
@@ -35,6 +36,8 @@ class ExcelGenerator:
                     "; ".join(sorted(v.created_in)),
                     "; ".join(sorted(v.modified_in)),
                     "; ".join(sorted(v.used_in)),
+                    "Sí" if v.used_in_layout else "No",
+                    "; ".join(sorted(v.layout_pages)),
                 ]
                 for v in workflow.variables
             ],
