@@ -43,6 +43,34 @@ def test_mermaid_flowchart(workflow):
     assert "DataInput1" in mmd
 
 
+def test_mermaid_escapes_special_chars():
+    from inspire.model.elements import Module
+    from inspire.model.enums import ModuleCategory
+    from inspire.model.workflow import Workflow
+
+    wf = Workflow(name="t")
+    wf.modules = [
+        Module(
+            id="DT1",
+            name="AsignaEmail&Politicas",
+            kind="DataTransformer",
+            category=ModuleCategory.TRANSFORM,
+        )
+    ]
+    mmd = MermaidGenerator().render(wf)
+    # El '&' debe ir escapado como entidad para no romper Mermaid.
+    assert "AsignaEmail&amp;Politicas" in mmd
+    assert "AsignaEmail&Politicas" not in mmd
+    # Ya no usamos <small> (lo sanitiza Mermaid en modo estricto).
+    assert "<small>" not in mmd
+
+
+def test_html_raises_mermaid_edge_limit(workflow):
+    # El portal debe elevar maxEdges para workflows con >500 conexiones.
+    html = HtmlGenerator().render(workflow)
+    assert "maxEdges" in html
+
+
 def test_graphml_is_valid_xml(workflow):
     xml = GraphMLGenerator().render(workflow)
     root = ET.fromstring(xml)

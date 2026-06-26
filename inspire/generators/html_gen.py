@@ -320,8 +320,17 @@ function renderDiagram() {
     <pre>${esc(DATA.mermaid)}</pre></details></div>`;
   const s = document.createElement('script');
   s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
-  s.onload = () => { try { mermaid.initialize({startOnLoad:true, theme:'dark'});
-    mermaid.run({nodes:[document.getElementById('mmd')]}); } catch(e){} };
+  s.onload = () => { try {
+    // maxEdges alto: los workflows grandes superan el límite de 500 de Mermaid.
+    mermaid.initialize({startOnLoad:false, theme:'dark', maxEdges:100000});
+    mermaid.run({nodes:[document.getElementById('mmd')]}).catch(err => {
+      document.getElementById('mmd').innerHTML =
+        '<div class="count">No se pudo renderizar: '+err+'. Usa el código de abajo.</div>';
+    });
+  } catch(e){
+    document.getElementById('mmd').innerHTML =
+      '<div class="count">No se pudo renderizar: '+e+'. Usa el código de abajo.</div>';
+  } };
   s.onerror = () => { document.getElementById('mmd').innerHTML =
     '<div class="count">Sin conexión para renderizar; usa el código de abajo.</div>'; };
   document.body.appendChild(s);
