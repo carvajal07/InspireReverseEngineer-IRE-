@@ -23,6 +23,12 @@ de migración.
   - Cruces (Join) y Lookups.
   - Scripts embebidos (con detección de variables leídas/escritas).
   - Parámetros, renombrados y agrupaciones.
+  - **Uso en el diseño** (módulo Layout): por cada hoja/página detecta qué
+    variables de datos se usan, marcando cada variable como usada o no en el
+    diseño (incluye variables citadas en condiciones de las hojas).
+- **Grafo de linaje por variable**: en el portal HTML, al seleccionar una
+  variable se muestra su recorrido completo (dónde se crea, por dónde se
+  modifica, dónde se usa y si llega al diseño).
 - **Analizadores semánticos**: dependencias, estadísticas, reglas y variables
   (sin uso, huérfanas, duplicadas, críticas).
 - **Generadores**: JSON, Markdown, Mermaid, GraphML, Excel/CSV, XML limpio,
@@ -60,6 +66,9 @@ ire proyecto.xml --stats-only
 
 # Formatos concretos y directorio de salida
 ire proyecto.xml -o salida -f json -f markdown -f mermaid
+
+# Diseño en un archivo de Layout aparte (si no está en el XML principal)
+ire proyecto.xml --layout Layout.xml
 ```
 
 Formatos disponibles: `json`, `markdown`, `mermaid`, `graphml`, `cleanxml`,

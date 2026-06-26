@@ -57,6 +57,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Sólo imprime las estadísticas, sin generar archivos.",
     )
+    parser.add_argument(
+        "--layout",
+        metavar="LAYOUT_XML",
+        help="Archivo de Layout aparte (si el diseño no está en el XML principal).",
+    )
     parser.add_argument("--version", action="version", version=f"IRE {__version__}")
     return parser
 
@@ -75,6 +80,8 @@ def _print_stats(workflow) -> None:
     print(f"  Conexiones    : {s.connections}")
     print(f"  Entradas      : {s.inputs}")
     print(f"  Salidas       : {s.outputs}")
+    if s.layout_pages:
+        print(f"  Vars en diseño: {s.variables_in_layout} (en {s.layout_pages} páginas)")
     print("-" * 48)
 
 
@@ -87,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     print(f"Cargando {xml_path} ...")
-    workflow = WorkflowParser().parse_file(xml_path)
+    workflow = WorkflowParser().parse_file(xml_path, layout_path=args.layout)
     analyze(workflow)
     _print_stats(workflow)
 

@@ -4,6 +4,7 @@
 # Dependencias opcionales para funcionalidades extra:
 openpyxl>=3.1    # generación de Excel (.xlsx); sin ella se degrada a CSV
 reportlab>=4.0   # generación de PDF; sin ella el formato 'pdf' se omite
+lxml>=4.9        # análisis de Layout más tolerante; opcional (hay fallback stdlib)
 
 # Desarrollo / pruebas:
 pytest>=7.4

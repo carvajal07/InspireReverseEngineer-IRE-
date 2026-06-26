@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from inspire.model.elements import Connection, Module, Variable
 from inspire.model.enums import ModuleCategory
+
+if TYPE_CHECKING:
+    from inspire.analyzers.layout import LayoutReport
 
 
 @dataclass(slots=True)
@@ -31,6 +35,8 @@ class Statistics:
     connections: int = 0
     inputs: int = 0
     outputs: int = 0
+    variables_in_layout: int = 0
+    layout_pages: int = 0
     by_kind: dict[str, int] = field(default_factory=dict)
     by_category: dict[str, int] = field(default_factory=dict)
 
@@ -46,6 +52,8 @@ class Statistics:
             "connections": self.connections,
             "inputs": self.inputs,
             "outputs": self.outputs,
+            "variables_in_layout": self.variables_in_layout,
+            "layout_pages": self.layout_pages,
             "by_kind": dict(self.by_kind),
             "by_category": dict(self.by_category),
         }
@@ -67,6 +75,9 @@ class Workflow:
     variables: list[Variable] = field(default_factory=list)
     dependencies: list[Dependency] = field(default_factory=list)
     statistics: Statistics = field(default_factory=Statistics)
+
+    #: Análisis del diseño (módulo Layout), si el XML lo incluye.
+    layout: "LayoutReport | None" = None
 
     # ----- Índices y accesos de conveniencia -----
 

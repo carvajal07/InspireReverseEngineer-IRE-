@@ -135,6 +135,13 @@ class Variable:
     #: Módulos donde la variable se consume/usa.
     used_in: set[str] = field(default_factory=set)
 
+    #: True si la variable se usa en el diseño (módulo Layout).
+    used_in_layout: bool = False
+    #: Páginas/hojas del diseño donde se usa ("módulo / página").
+    layout_pages: set[str] = field(default_factory=set)
+    #: Rutas completas con que aparece en el diseño (p.ej. Ord.Records.Campo).
+    layout_paths: set[str] = field(default_factory=set)
+
     @property
     def is_orphan(self) -> bool:
         """No se crea en ningún módulo pero se usa."""
