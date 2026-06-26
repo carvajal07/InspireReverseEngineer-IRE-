@@ -45,6 +45,8 @@ def module_to_dict(module: Module) -> dict[str, object]:
     }
     if module.fields:
         data["fields"] = [field_to_dict(f) for f in module.fields]
+    if module.created_nodes:
+        data["created_nodes"] = module.created_nodes
     if module.transformations:
         data["transformations"] = [
             transformation_to_dict(t) for t in module.transformations

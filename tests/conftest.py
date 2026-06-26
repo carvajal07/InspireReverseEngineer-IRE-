@@ -43,9 +43,17 @@ SAMPLE_XML = """<?xml version="1.0" encoding="UTF-8"?>
     <ModulePos X="50" Y="60" />
     <WorkFlowDefinition>
       <Node Name="" Type="SubTree" Optionality="MustExist">
-        <Node Name="Contador" Type="Int" Optionality="MustExist" />
+        <Node Name="Records" Type="SubTree" Optionality="Array">
+          <Node Name="TipoId" Type="String" Optionality="MustExist" />
+          <Node Name="Contador" Type="Int" Optionality="MustExist" />
+        </Node>
       </Node>
     </WorkFlowDefinition>
+    <CreatedNodes>
+      <CreatedNode Type="Int" Optionality="MustExist" Caption="Contador"
+                   FieldDotName="Records.Contador" ParentDotName="Records"
+                   LinkedType="StandAlone" DefaultValue="0" />
+    </CreatedNodes>
     <Transformations>
       <Transformation DotName="Records.Contador" Propagate="True" NodeType="Int">
         <FCVClassName>ScriptFCV</FCVClassName>
@@ -73,6 +81,14 @@ SAMPLE_XML = """<?xml version="1.0" encoding="UTF-8"?>
     <Id>DataFilter1</Id>
     <Name>FiltraVariables</Name>
     <ModulePos X="70" Y="80" />
+    <WorkFlowDefinition>
+      <Node Name="" Type="SubTree" Optionality="MustExist">
+        <Node Name="Records" Type="SubTree" Optionality="Array">
+          <Node Name="TipoId" Type="String" Optionality="MustExist" />
+          <Node Name="Contador" Type="Int" Optionality="MustExist" />
+        </Node>
+      </Node>
+    </WorkFlowDefinition>
     <Conditions>
       <Condition SearchName="Records.TipoId" ValueType="String"
                  InvertCondition="False" ConditionType="Equalto" Value="Variables" />
