@@ -29,11 +29,11 @@ de migración.
 - **Grafo de linaje por variable**: en el portal HTML, al seleccionar una
   variable se muestran los módulos donde se crea, se modifica y se usa (y si
   llega al diseño).
-- **Diagrama de flujo con Graphviz** (layout jerárquico `dot`, mucho más
-  legible que Mermaid para flujos grandes) incrustado en el portal, con nodos
-  clicables que abren el módulo. Si el binario `dot` no está instalado, el
-  portal usa Mermaid automáticamente. También exportable como SVG con
-  `-f graphviz`.
+- **Diagrama de flujo con layout jerárquico** incrustado en el portal, con
+  nodos clicables que abren el módulo. Usa **Graphviz** (`dot`) si está
+  instalado (mejor calidad, `-f graphviz`); si no —p.ej. en equipos sin
+  permisos de administrador— usa un **layout jerárquico propio en Python puro,
+  sin dependencias** (`-f flow`). Sólo como último recurso cae a Mermaid.
 - **Visor de grafos con zoom y paneo** y, para flujos grandes, un **modo
   enfoque** que muestra el vecindario de un módulo (aguas arriba/abajo a la
   profundidad elegida) en lugar del grafo completo ilegible.
@@ -80,7 +80,7 @@ ire proyecto.xml --layout Layout.xml
 ```
 
 Formatos disponibles: `json`, `markdown`, `mermaid`, `graphml`, `graphviz`,
-`cleanxml`, `excel`, `html`, `pdf`, `all`.
+`flow`, `cleanxml`, `excel`, `html`, `pdf`, `all`.
 
 El **portal HTML** es un único archivo autocontenido: ábrelo en el navegador
 para buscar y filtrar módulos, variables y reglas, navegar entre módulos

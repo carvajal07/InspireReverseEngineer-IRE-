@@ -15,6 +15,7 @@ from pathlib import Path
 
 from inspire.analyzers.rules import RuleAnalyzer
 from inspire.analyzers.variables import VariableAnalyzer
+from inspire.generators.flow_layout import FlowLayoutGenerator
 from inspire.generators.graphviz_gen import GraphvizGenerator
 from inspire.generators.mermaid_gen import MermaidGenerator
 from inspire.generators.serialize import workflow_to_dict
@@ -41,17 +42,26 @@ class HtmlGenerator:
         ]
         data["variable_report"] = var_report.as_dict()
         data["mermaid"] = MermaidGenerator().render(workflow)
-        # Diagrama de flujo con layout jerárquico de Graphviz (si 'dot' está
-        # disponible). Es mucho más legible para flujos grandes; el portal cae
-        # en Mermaid si no se pudo generar.
+        # Diagrama de flujo con layout jerárquico. Si el binario 'dot' de
+        # Graphviz está disponible, se usa (mejor calidad); si no —p.ej. en
+        # equipos sin permisos de administrador— se usa un layout jerárquico
+        # propio en Python puro, sin dependencias. Ambos producen un SVG con la
+        # misma convención de ids, por lo que el portal los trata igual.
         gv = GraphvizGenerator()
+        data["flow_svg"] = None
+        data["flow_engine"] = "Mermaid"
         if gv.available:
             try:
                 data["flow_svg"] = gv.render_svg(workflow)
-            except Exception:  # noqa: BLE001 - degradar a Mermaid sin romper
+                data["flow_engine"] = "Graphviz (layout jerárquico)"
+            except Exception:  # noqa: BLE001
                 data["flow_svg"] = None
-        else:
-            data["flow_svg"] = None
+        if data["flow_svg"] is None:
+            try:
+                data["flow_svg"] = FlowLayoutGenerator().build_svg(workflow)
+                data["flow_engine"] = "Layout jerárquico (Python)"
+            except Exception:  # noqa: BLE001 - último recurso: Mermaid
+                data["flow_svg"] = None
         return data
 
     def render(self, workflow: Workflow) -> str:
@@ -703,7 +713,7 @@ function renderDiagram() {
   diagramRendered = true;
   const el = document.getElementById('diagramView');
   const names = DATA.modules.map(m => m.name).sort();
-  const engine = HAS_FLOW_SVG ? 'Graphviz (layout jerárquico)' : 'Mermaid';
+  const engine = DATA.flow_engine || (HAS_FLOW_SVG ? 'Layout jerárquico' : 'Mermaid');
   el.innerHTML = `<div class="section"><h3>Diagrama de flujo <span class="count">· ${engine}</span></h3>
     <div class="toolbar" style="padding:0 0 6px">
       <input id="focusSearch" list="modNames" placeholder="Enfocar un módulo (escribe y elige)…"

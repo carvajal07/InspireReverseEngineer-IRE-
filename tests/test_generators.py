@@ -104,9 +104,20 @@ def test_html_lineage_relevant_only_and_panzoom(workflow):
     # Modo enfoque (vecindario de un módulo) para flujos grandes.
     assert "buildFlowSubgraph" in html
     assert "focusModule" in html
-    # Integración de Graphviz: helper para montar el SVG con nodos clicables.
+    # Integración del diagrama SVG: helper para montar con nodos clicables.
     assert "mountSvgInto" in html
     assert "flow_svg" in html
+
+
+def test_html_uses_python_layout_when_graphviz_missing(workflow, monkeypatch):
+    # Simula que el binario 'dot' no está disponible (caso sin permisos admin).
+    import inspire.generators.graphviz_gen as gv
+
+    monkeypatch.setattr(gv.shutil, "which", lambda name: None)
+    html = HtmlGenerator().render(workflow)
+    assert "Layout jerárquico (Python)" in html
+    # El diagrama sigue incrustado como SVG (no depende de Mermaid).
+    assert '"flow_svg"' in html or "flow_svg" in html
     # Columna de diseño: "Sí" abre un cuadro con las hojas.
     assert "openPages" in html
     assert "pagesOverlay" in html

@@ -11,6 +11,7 @@ from inspire.analyzers import analyze
 from inspire.generators import (
     CleanXmlGenerator,
     ExcelGenerator,
+    FlowLayoutGenerator,
     GraphMLGenerator,
     GraphvizGenerator,
     HtmlGenerator,
@@ -28,6 +29,7 @@ _GENERATORS = {
     "mermaid": (".mmd", MermaidGenerator),
     "graphml": (".graphml", GraphMLGenerator),
     "graphviz": (".svg", GraphvizGenerator),
+    "flow": (".flow.svg", FlowLayoutGenerator),
     "cleanxml": (".clean.xml", CleanXmlGenerator),
     "excel": (".xlsx", ExcelGenerator),
     "html": (".html", HtmlGenerator),
