@@ -104,6 +104,9 @@ def test_html_lineage_relevant_only_and_panzoom(workflow):
     # Modo enfoque (vecindario de un módulo) para flujos grandes.
     assert "buildFlowSubgraph" in html
     assert "focusModule" in html
+    # Integración de Graphviz: helper para montar el SVG con nodos clicables.
+    assert "mountSvgInto" in html
+    assert "flow_svg" in html
     # Columna de diseño: "Sí" abre un cuadro con las hojas.
     assert "openPages" in html
     assert "pagesOverlay" in html

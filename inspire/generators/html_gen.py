@@ -15,6 +15,7 @@ from pathlib import Path
 
 from inspire.analyzers.rules import RuleAnalyzer
 from inspire.analyzers.variables import VariableAnalyzer
+from inspire.generators.graphviz_gen import GraphvizGenerator
 from inspire.generators.mermaid_gen import MermaidGenerator
 from inspire.generators.serialize import workflow_to_dict
 from inspire.model.workflow import Workflow
@@ -40,6 +41,17 @@ class HtmlGenerator:
         ]
         data["variable_report"] = var_report.as_dict()
         data["mermaid"] = MermaidGenerator().render(workflow)
+        # Diagrama de flujo con layout jerárquico de Graphviz (si 'dot' está
+        # disponible). Es mucho más legible para flujos grandes; el portal cae
+        # en Mermaid si no se pudo generar.
+        gv = GraphvizGenerator()
+        if gv.available:
+            try:
+                data["flow_svg"] = gv.render_svg(workflow)
+            except Exception:  # noqa: BLE001 - degradar a Mermaid sin romper
+                data["flow_svg"] = None
+        else:
+            data["flow_svg"] = None
         return data
 
     def render(self, workflow: Workflow) -> str:
@@ -557,14 +569,24 @@ function mountPanZoom(view) {
     try { const bb = svg.getBBox(); return [bb.width||view.clientWidth, bb.height||view.clientHeight]; }
     catch(e) { return [view.clientWidth, view.clientHeight]; }
   }
-  function fit() {
-    const [gw, gh] = graphSize();
-    const cw = view.clientWidth, ch = view.clientHeight;
-    // Escala inicial "decente": no ampliar grafos pequeños (máx 1x) ni encoger
-    // los enormes hasta un punto (mín legible y se panea).
-    const base = Math.min(cw/gw, ch/gh) * 0.95 || 1;
-    scale = Math.min(1, Math.max(0.18, base));
-    tx = Math.max(0, (cw - gw*scale)/2); ty = Math.max(0, (ch - gh*scale)/2); apply();
+  function place(s) {
+    const [gw, gh] = graphSize(); const cw = view.clientWidth, ch = view.clientHeight;
+    scale = s; tx = Math.max(0, (cw - gw*scale)/2); ty = Math.max(0, (ch - gh*scale)/2); apply();
+  }
+  // Vista inicial "decente": si el grafo cabe entero, se centra a tamaño natural
+  // (máx 1x). Si es un flujo ancho (ribbon), se ancla arriba-izquierda (el
+  // inicio del flujo) a una escala legible y se panea; nunca amplía > 1x.
+  function fill() {
+    const [gw, gh] = graphSize(); const cw = view.clientWidth, ch = view.clientHeight;
+    const fitBoth = Math.min(cw/gw, ch/gh) * 0.95;
+    if (fitBoth >= 0.5) { place(Math.min(1, fitBoth) || 1); return; }  // cabe bien
+    scale = Math.min(1, Math.max(0.55, (ch/gh) * 0.95)) || 1;          // ribbon
+    tx = 0; ty = 0; apply();
+  }
+  // "Ajustar": muestra el grafo completo (puede quedar pequeño en flujos anchos).
+  function fitAll() {
+    const [gw, gh] = graphSize(); const cw = view.clientWidth, ch = view.clientHeight;
+    place(Math.min(1, Math.max(0.03, Math.min(cw/gw, ch/gh) * 0.95)) || 1);
   }
   function zoomAt(mx, my, factor) {
     const ns = Math.min(8, Math.max(0.03, scale*factor));
@@ -588,8 +610,36 @@ function mountPanZoom(view) {
     zoomAt(r.width/2, r.height/2, 1.25); };
   c.querySelector('[data-zout]').onclick = () => { const r=view.getBoundingClientRect();
     zoomAt(r.width/2, r.height/2, 1/1.25); };
-  c.querySelector('[data-zfit]').onclick = fit;
-  requestAnimationFrame(fit);
+  c.querySelector('[data-zfit]').onclick = fitAll;
+  requestAnimationFrame(fill);
+}
+
+// Monta un SVG ya diagramado (p.ej. de Graphviz) en el visor con zoom/paneo.
+// En el diagrama de flujo, además hace clicables los nodos (abren el módulo).
+function mountSvgInto(elId, svgString, opts) {
+  const host = document.getElementById(elId);
+  host.innerHTML =
+    `<div class="graphview${opts&&opts.lineage?' lineage':''}">`+
+      `<div class="graphctrl">`+
+        `<button data-zout title="Alejar">&minus;</button>`+
+        `<button data-zfit title="Ver todo">&#9974;</button>`+
+        `<button data-zin title="Acercar">+</button>`+
+      `</div>`+
+      `<div class="graphhint">arrastra · rueda para zoom · clic en un módulo para abrirlo</div>`+
+      svgString+
+    `</div>`;
+  const view = host.querySelector('.graphview');
+  mountPanZoom(view);
+  const byNode = {};
+  DATA.modules.forEach(m => { byNode['fn'+String(m.id).replace(/\W/g,'_')] = m.id; });
+  view.querySelectorAll('svg g.node').forEach(g => {
+    const mid = byNode[g.id]; if (!mid) return;
+    g.style.cursor = 'pointer';
+    g.addEventListener('click', ev => { ev.stopPropagation();
+      document.querySelector('.tab[data-tab="modules"]').click();
+      selectModule(mid);
+    });
+  });
 }
 
 // ---- Diagrama ----
@@ -629,14 +679,33 @@ function focusModule() {
   mmd.innerHTML = '<div class="count">Renderizando '+count+' módulos…</div>';
   renderMermaidInto('mmd', src, 'Usa el código de abajo.');
 }
+const HAS_FLOW_SVG = !!DATA.flow_svg;
+function showFullFlow() {
+  const mmd = document.getElementById('mmd');
+  if (HAS_FLOW_SVG) {
+    mmd.innerHTML = '<div class="count">Cargando diagrama…</div>';
+    mountSvgInto('mmd', DATA.flow_svg);
+  } else {
+    mmd.innerHTML = '<div class="count">Renderizando flujo completo…</div>';
+    renderMermaidInto('mmd', DATA.mermaid, 'Usa el código de abajo.');
+  }
+}
+function legendHtml() {
+  const labels = {input:'Entrada',transform:'Transformación',control:'Control',
+    integration:'Integración',script:'Script',output:'Salida',other:'Otro'};
+  return '<div class="count" style="margin:6px 0">'+Object.entries(CAT_COLORS).map(([c,col])=>
+    `<span style="margin-right:12px"><span class="dot" style="background:${col}"></span>${labels[c]}</span>`
+  ).join('')+'</div>';
+}
 let diagramRendered = false;
 function renderDiagram() {
   if (diagramRendered) return;
   diagramRendered = true;
   const el = document.getElementById('diagramView');
   const names = DATA.modules.map(m => m.name).sort();
-  el.innerHTML = `<div class="section"><h3>Diagrama de flujo</h3>
-    <div class="toolbar" style="padding:0 0 10px">
+  const engine = HAS_FLOW_SVG ? 'Graphviz (layout jerárquico)' : 'Mermaid';
+  el.innerHTML = `<div class="section"><h3>Diagrama de flujo <span class="count">· ${engine}</span></h3>
+    <div class="toolbar" style="padding:0 0 6px">
       <input id="focusSearch" list="modNames" placeholder="Enfocar un módulo (escribe y elige)…"
              style="flex:1;min-width:220px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text)">
       <datalist id="modNames">${names.map(n=>`<option value="${esc(n)}"></option>`).join('')}</datalist>
@@ -645,18 +714,15 @@ function renderDiagram() {
       <button class="chip" id="focusBtn">Enfocar</button>
       <button class="chip" id="fullBtn">Ver todo (${DATA.modules.length})</button>
     </div>
-    <div id="mmd"><div class="count">${BIG_FLOW
-      ? 'El flujo tiene '+DATA.modules.length+' módulos. Enfoca un módulo para verlo legible, o pulsa “Ver todo”.'
-      : 'Renderizando…'}</div></div>
+    ${legendHtml()}
+    <div id="mmd"><div class="count">Cargando diagrama…</div></div>
     <details style="margin-top:12px"><summary>Ver código Mermaid (completo)</summary>
     <pre>${esc(DATA.mermaid)}</pre></details></div>`;
   document.getElementById('focusBtn').onclick = focusModule;
   document.getElementById('focusSearch').onkeydown = e => { if (e.key==='Enter') focusModule(); };
-  document.getElementById('fullBtn').onclick = () => {
-    document.getElementById('mmd').innerHTML = '<div class="count">Renderizando flujo completo…</div>';
-    renderMermaidInto('mmd', DATA.mermaid, 'Usa el código de abajo.');
-  };
-  if (!BIG_FLOW) renderMermaidInto('mmd', DATA.mermaid, 'Usa el código de abajo.');
+  document.getElementById('fullBtn').onclick = showFullFlow;
+  // Por defecto se muestra el flujo completo: con Graphviz ya es legible.
+  showFullFlow();
 }
 
 // ---- Init ----
