@@ -5,6 +5,9 @@
 openpyxl>=3.1    # generación de Excel (.xlsx); sin ella se degrada a CSV
 reportlab>=4.0   # generación de PDF; sin ella el formato 'pdf' se omite
 lxml>=4.9        # análisis de Layout más tolerante; opcional (hay fallback stdlib)
+# Diagrama de flujo con Graphviz (layout jerárquico): requiere el binario 'dot'
+# del sistema, p.ej. `apt-get install graphviz` o `brew install graphviz`.
+# Si no está, el portal usa Mermaid automáticamente.
 
 # Desarrollo / pruebas:
 pytest>=7.4
