@@ -152,6 +152,19 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .modal-body { padding:16px 18px; overflow:auto; }
   .legend span { font-size:11px; margin-right:12px; }
   .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  /* Visor de grafos con zoom + paneo */
+  .graphview { position: relative; border:1px solid var(--border); border-radius:8px;
+               overflow:hidden; background:#0b1220; height: 62vh; touch-action:none; }
+  .graphview.lineage { height: 58vh; }
+  .graphview svg { transform-origin: 0 0; cursor: grab; max-width:none !important; height:auto; }
+  .graphview.grabbing svg { cursor: grabbing; }
+  .graphctrl { position:absolute; top:8px; right:8px; display:flex; gap:4px; z-index:5; }
+  .graphctrl button { background: var(--panel2); color:var(--text); border:1px solid var(--border);
+                      border-radius:6px; width:30px; height:30px; cursor:pointer; font-size:15px;
+                      line-height:1; }
+  .graphctrl button:hover { background: var(--border); }
+  .graphhint { position:absolute; bottom:8px; left:10px; font-size:11px; color:var(--muted);
+               z-index:5; background:rgba(15,23,42,.6); padding:2px 6px; border-radius:6px; }
 </style>
 </head>
 <body>
@@ -203,7 +216,6 @@ _TEMPLATE = r"""<!DOCTYPE html>
         <span><span class="dot" style="background:#16a34a"></span>Crea</span>
         <span><span class="dot" style="background:#fbbf24"></span>Modifica</span>
         <span><span class="dot" style="background:#38bdf8"></span>Usa</span>
-        <span><span class="dot" style="background:#64748b"></span>Tránsito</span>
         <span><span class="dot" style="background:#c084fc"></span>Diseño</span>
       </span>
       <button class="modal-close" id="lineageClose">&times;</button>
@@ -368,46 +380,42 @@ function buildLineageMermaid(v) {
   setRole(v.created_in, 'crea');
   setRole(v.modified_in, 'modifica');
   setRole(v.used_in, 'usa');
+  // Sólo los módulos donde la variable se crea / modifica / usa (sin tránsito).
   const R = Object.keys(role);
+  const roleSet = new Set(R);
   const adj = {}; DATA.connections.forEach(c => (adj[c.from]=adj[c.from]||[]).push(c.to));
-  // Nodos de tránsito: caminos más cortos de un creador a cada destino.
-  const creators = R.filter(id => role[id]==='crea');
-  const targets = new Set(R.filter(id => role[id]!=='crea'));
-  const transit = new Set();
-  creators.forEach(src => {
-    const prev = {}, q=[src], seen=new Set([src]);
-    while (q.length) { const n=q.shift();
-      (adj[n]||[]).forEach(nx => { if(!seen.has(nx)){ seen.add(nx); prev[nx]=n; q.push(nx);} }); }
-    targets.forEach(t => { if (prev[t]!==undefined) { let cur=prev[t];
-      while (cur!==undefined && cur!==src) { if(!role[cur]) transit.add(cur); cur=prev[cur]; } } });
+  // Para cada módulo relevante, qué otros módulos relevantes alcanza por el flujo.
+  const reach = {};
+  R.forEach(src => {
+    const seen = new Set(); const q = [...(adj[src]||[])];
+    while (q.length) { const n = q.shift(); if (seen.has(n)) continue; seen.add(n);
+      (adj[n]||[]).forEach(x => { if (!seen.has(x)) q.push(x); }); }
+    reach[src] = [...seen].filter(id => roleSet.has(id) && id !== src);
   });
-  let nodes = [...new Set([...R, ...transit])];
-  let capped = false;
-  if (nodes.length > 80) { nodes = R.slice(0, 80); capped = true; }
-  const nodeSet = new Set(nodes);
-  const styleByRole = {crea:'crea', modifica:'modifica', usa:'usa', transito:'transito'};
+  // Reducción transitiva: arista directa r->s sólo si s no se alcanza vía otro relevante.
+  const edges = [];
+  R.forEach(r => {
+    (reach[r] || []).forEach(s => {
+      if (!reach[r].some(t => t !== s && (reach[t]||[]).includes(s))) edges.push([r, s]);
+    });
+  });
+  const styleByRole = {crea:'crea', modifica:'modifica', usa:'usa'};
   const lines = ['flowchart LR'];
   lines.push('classDef crea fill:#16a34a,stroke:#14532d,color:#fff;');
   lines.push('classDef modifica fill:#fbbf24,stroke:#92400e,color:#1f2937;');
   lines.push('classDef usa fill:#38bdf8,stroke:#075985,color:#06283d;');
-  lines.push('classDef transito fill:#475569,stroke:#1e293b,color:#e2e8f0;');
   lines.push('classDef design fill:#c084fc,stroke:#6b21a8,color:#2e1065;');
-  nodes.forEach(id => {
-    const r = role[id] || 'transito';
-    lines.push(`${safeId(id)}["${esc(idName[id]||id)}<br/>${r}"]:::${styleByRole[r]}`);
-  });
-  DATA.connections.forEach(c => {
-    if (nodeSet.has(c.from) && nodeSet.has(c.to))
-      lines.push(`${safeId(c.from)} --> ${safeId(c.to)}`);
-  });
+  R.forEach(id =>
+    lines.push(`${safeId(id)}["${esc(idName[id]||id)}<br/>${role[id]}"]:::${styleByRole[role[id]]}`));
+  edges.forEach(([a, b]) => lines.push(`${safeId(a)} --> ${safeId(b)}`));
   if (v.used_in_layout) {
     const np = (v.layout_pages||[]).length;
     lines.push(`DESIGN(["Diseño / Layout<br/>${np} página(s)"]):::design`);
-    const sources = creators.length ? creators : R;
-    sources.filter(id => nodeSet.has(id)).forEach(id =>
-      lines.push(`${safeId(id)} -.-> DESIGN`));
+    // El diseño consume el dato al final: enlazar desde los nodos sin sucesor relevante.
+    const sinks = R.filter(id => !edges.some(e => e[0] === id));
+    (sinks.length ? sinks : R).forEach(id => lines.push(`${safeId(id)} -.-> DESIGN`));
   }
-  return {src: lines.join('\n'), capped, count: nodes.length};
+  return {src: lines.join('\n'), count: R.length};
 }
 function openLineage(name) {
   const v = VAR_BY_NAME[name]; if (!v) return;
@@ -419,16 +427,16 @@ function openLineage(name) {
     ? `<b>Diseño:</b> ${esc((v.layout_pages||[]).join('; '))}<br>`+
       `<b>Rutas:</b> <code>${esc((v.layout_paths||[]).join('</code>, <code>'))}</code>`
     : '<b>Diseño:</b> no se usa en el diseño';
-  const {src, capped, count} = buildLineageMermaid(v);
+  const {src, count} = buildLineageMermaid(v);
   document.getElementById('lineageBody').innerHTML =
     `<div class="count" style="margin-bottom:8px">Tipo: ${esc(v.type||'-')} · `+
     `Crea: ${esc(created)} · Modifica: ${esc(modified)} · Usa: ${esc(used)}</div>`+
     `<div style="margin-bottom:10px">${design}</div>`+
-    (capped?`<div class="count">Grafo grande: mostrando ${count} nodos.</div>`:'')+
+    (count>30?`<div class="count">Grafo grande (${count} módulos): usa el zoom y arrastra para navegar.</div>`:'')+
     `<div id="lineageGraph"><div class="count">Renderizando…</div></div>`+
     `<details style="margin-top:10px"><summary>Ver código Mermaid</summary><pre>${esc(src)}</pre></details>`;
   document.getElementById('lineageOverlay').classList.add('show');
-  renderMermaidInto('lineageGraph', src, 'Usa el código de abajo.');
+  renderMermaidInto('lineageGraph', src, 'Usa el código de abajo.', {lineage:true});
 }
 document.getElementById('lineageClose').onclick = () =>
   document.getElementById('lineageOverlay').classList.remove('show');
@@ -464,28 +472,139 @@ function ensureMermaid() {
   });
   return mermaidPromise;
 }
-async function renderMermaidInto(elId, src, fallbackMsg) {
-  const el = document.getElementById(elId);
+async function renderMermaidInto(elId, src, fallbackMsg, opts) {
+  const host = document.getElementById(elId);
   try {
     const m = await ensureMermaid();
     const {svg} = await m.render(elId+'_svg', src);
-    el.innerHTML = svg;
+    host.innerHTML =
+      `<div class="graphview${opts&&opts.lineage?' lineage':''}">`+
+        `<div class="graphctrl">`+
+          `<button data-zout title="Alejar">&minus;</button>`+
+          `<button data-zfit title="Ajustar a la vista">&#9974;</button>`+
+          `<button data-zin title="Acercar">+</button>`+
+        `</div>`+
+        `<div class="graphhint">arrastra para mover · rueda para zoom</div>`+
+        svg+
+      `</div>`;
+    mountPanZoom(host.querySelector('.graphview'));
   } catch(e) {
-    el.innerHTML = '<div class="count">No se pudo renderizar ('+e+'). '+(fallbackMsg||'')+'</div>';
+    host.innerHTML = '<div class="count">No se pudo renderizar ('+e+'). '+(fallbackMsg||'')+'</div>';
   }
 }
 
+// Zoom + paneo sobre un SVG ya renderizado (sin dependencias, funciona offline).
+function mountPanZoom(view) {
+  const svg = view.querySelector('svg');
+  if (!svg) return;
+  svg.removeAttribute('width'); svg.removeAttribute('height');
+  svg.style.maxWidth = 'none';
+  let scale = 1, tx = 0, ty = 0, dragging = false, sx = 0, sy = 0;
+  const apply = () => { svg.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; };
+  function graphSize() {
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    if (vb && vb.width) return [vb.width, vb.height];
+    try { const bb = svg.getBBox(); return [bb.width||view.clientWidth, bb.height||view.clientHeight]; }
+    catch(e) { return [view.clientWidth, view.clientHeight]; }
+  }
+  function fit() {
+    const [gw, gh] = graphSize();
+    const cw = view.clientWidth, ch = view.clientHeight;
+    // Para grafos enormes no encoger hasta un punto: mínimo legible y se panea.
+    scale = Math.max(0.18, Math.min(cw/gw, ch/gh) * 0.95) || 1;
+    tx = Math.max(0, (cw - gw*scale)/2); ty = Math.max(0, (ch - gh*scale)/2); apply();
+  }
+  function zoomAt(mx, my, factor) {
+    const ns = Math.min(8, Math.max(0.03, scale*factor));
+    tx = mx - (mx-tx)*(ns/scale); ty = my - (my-ty)*(ns/scale); scale = ns; apply();
+  }
+  view.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = view.getBoundingClientRect();
+    zoomAt(e.clientX-r.left, e.clientY-r.top, e.deltaY<0 ? 1.15 : 1/1.15);
+  }, {passive:false});
+  view.addEventListener('mousedown', e => {
+    if (e.target.closest('.graphctrl')) return;
+    dragging = true; sx = e.clientX-tx; sy = e.clientY-ty; view.classList.add('grabbing');
+  });
+  view.addEventListener('mousemove', e => { if (dragging) { tx = e.clientX-sx; ty = e.clientY-sy; apply(); } });
+  const stop = () => { dragging = false; view.classList.remove('grabbing'); };
+  view.addEventListener('mouseup', stop);
+  view.addEventListener('mouseleave', stop);
+  const c = view.querySelector('.graphctrl');
+  c.querySelector('[data-zin]').onclick = () => { const r=view.getBoundingClientRect();
+    zoomAt(r.width/2, r.height/2, 1.25); };
+  c.querySelector('[data-zout]').onclick = () => { const r=view.getBoundingClientRect();
+    zoomAt(r.width/2, r.height/2, 1/1.25); };
+  c.querySelector('[data-zfit]').onclick = fit;
+  requestAnimationFrame(fit);
+}
+
 // ---- Diagrama ----
+// Para flujos grandes, el grafo completo es ilegible. Por defecto se enfoca un
+// módulo y se muestra su vecindario (aguas arriba/abajo) hasta cierta
+// profundidad; "Ver todo" muestra el grafo completo en el visor con zoom.
+const CAT_COLORS = {input:'#5eead4',transform:'#fbbf24',control:'#f87171',
+  integration:'#c084fc',script:'#4ade80',output:'#fb923c',other:'#64748b'};
+const BIG_FLOW = DATA.modules.length > 40;
+function buildFlowSubgraph(centerId, depth) {
+  const adjOut = {}, adjIn = {};
+  DATA.connections.forEach(c => { (adjOut[c.from]=adjOut[c.from]||[]).push(c.to);
+    (adjIn[c.to]=adjIn[c.to]||[]).push(c.from); });
+  const inc = new Set([centerId]); const q = [[centerId,0]];
+  while (q.length) { const [n,d] = q.shift(); if (d>=depth) continue;
+    [...(adjOut[n]||[]), ...(adjIn[n]||[])].forEach(nb => {
+      if (!inc.has(nb)) { inc.add(nb); q.push([nb,d+1]); } }); }
+  const idName = {}, idCat = {};
+  DATA.modules.forEach(m => { idName[m.id]=m.name; idCat[m.id]=m.category; });
+  const lines = ['flowchart LR'];
+  Object.entries(CAT_COLORS).forEach(([c,col]) =>
+    lines.push(`classDef ${c} fill:${col},color:#0f172a,stroke:#1e293b;`));
+  lines.push('classDef center fill:#38bdf8,color:#06283d,stroke:#0ea5e9,stroke-width:4px;');
+  inc.forEach(id => { const cls = id===centerId ? 'center' : (idCat[id]||'other');
+    lines.push(`${safeId(id)}["${esc(idName[id]||id)}<br/>${esc(idCat[id]||'')}"]:::${cls}`); });
+  DATA.connections.forEach(c => { if (inc.has(c.from) && inc.has(c.to))
+    lines.push(`${safeId(c.from)} --> ${safeId(c.to)}`); });
+  return {src: lines.join('\n'), count: inc.size};
+}
+function focusModule() {
+  const name = document.getElementById('focusSearch').value.trim();
+  const depth = +document.getElementById('focusDepth').value;
+  const center = DATA.modules.find(m => m.name === name);
+  const mmd = document.getElementById('mmd');
+  if (!center) { mmd.innerHTML = '<div class="count">Escribe y elige un módulo de la lista.</div>'; return; }
+  const {src, count} = buildFlowSubgraph(center.id, depth);
+  mmd.innerHTML = '<div class="count">Renderizando '+count+' módulos…</div>';
+  renderMermaidInto('mmd', src, 'Usa el código de abajo.');
+}
 let diagramRendered = false;
 function renderDiagram() {
   if (diagramRendered) return;
   diagramRendered = true;
   const el = document.getElementById('diagramView');
+  const names = DATA.modules.map(m => m.name).sort();
   el.innerHTML = `<div class="section"><h3>Diagrama de flujo</h3>
-    <div id="mmd"><div class="count">Renderizando…</div></div>
-    <details style="margin-top:12px"><summary>Ver código Mermaid</summary>
+    <div class="toolbar" style="padding:0 0 10px">
+      <input id="focusSearch" list="modNames" placeholder="Enfocar un módulo (escribe y elige)…"
+             style="flex:1;min-width:220px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text)">
+      <datalist id="modNames">${names.map(n=>`<option value="${esc(n)}"></option>`).join('')}</datalist>
+      <label class="count">Profundidad
+        <select id="focusDepth"><option>1</option><option selected>2</option><option>3</option></select></label>
+      <button class="chip" id="focusBtn">Enfocar</button>
+      <button class="chip" id="fullBtn">Ver todo (${DATA.modules.length})</button>
+    </div>
+    <div id="mmd"><div class="count">${BIG_FLOW
+      ? 'El flujo tiene '+DATA.modules.length+' módulos. Enfoca un módulo para verlo legible, o pulsa “Ver todo”.'
+      : 'Renderizando…'}</div></div>
+    <details style="margin-top:12px"><summary>Ver código Mermaid (completo)</summary>
     <pre>${esc(DATA.mermaid)}</pre></details></div>`;
-  renderMermaidInto('mmd', DATA.mermaid, 'Usa el código de abajo.');
+  document.getElementById('focusBtn').onclick = focusModule;
+  document.getElementById('focusSearch').onkeydown = e => { if (e.key==='Enter') focusModule(); };
+  document.getElementById('fullBtn').onclick = () => {
+    document.getElementById('mmd').innerHTML = '<div class="count">Renderizando flujo completo…</div>';
+    renderMermaidInto('mmd', DATA.mermaid, 'Usa el código de abajo.');
+  };
+  if (!BIG_FLOW) renderMermaidInto('mmd', DATA.mermaid, 'Usa el código de abajo.');
 }
 
 // ---- Init ----

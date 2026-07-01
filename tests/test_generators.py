@@ -80,6 +80,20 @@ def test_html_has_design_column_and_lineage(workflow):
     assert "lineageOverlay" in html
 
 
+def test_html_lineage_relevant_only_and_panzoom(workflow):
+    html = HtmlGenerator().render(workflow)
+    # El linaje ya no dibuja nodos de tránsito.
+    assert "transito" not in html
+    assert "Tránsito" not in html
+    # Visor con zoom + paneo para grafos grandes.
+    assert "mountPanZoom" in html
+    assert "graphview" in html
+    assert "rueda para zoom" in html
+    # Modo enfoque (vecindario de un módulo) para flujos grandes.
+    assert "buildFlowSubgraph" in html
+    assert "focusModule" in html
+
+
 def test_graphml_is_valid_xml(workflow):
     xml = GraphMLGenerator().render(workflow)
     root = ET.fromstring(xml)

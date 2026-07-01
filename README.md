@@ -27,8 +27,11 @@ de migración.
     variables de datos se usan, marcando cada variable como usada o no en el
     diseño (incluye variables citadas en condiciones de las hojas).
 - **Grafo de linaje por variable**: en el portal HTML, al seleccionar una
-  variable se muestra su recorrido completo (dónde se crea, por dónde se
-  modifica, dónde se usa y si llega al diseño).
+  variable se muestran los módulos donde se crea, se modifica y se usa (y si
+  llega al diseño).
+- **Visor de grafos con zoom y paneo** y, para flujos grandes, un **modo
+  enfoque** que muestra el vecindario de un módulo (aguas arriba/abajo a la
+  profundidad elegida) en lugar del grafo completo ilegible.
 - **Analizadores semánticos**: dependencias, estadísticas, reglas y variables
   (sin uso, huérfanas, duplicadas, críticas).
 - **Generadores**: JSON, Markdown, Mermaid, GraphML, Excel/CSV, XML limpio,
