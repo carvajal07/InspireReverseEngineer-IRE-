@@ -199,6 +199,9 @@ _TEMPLATE = r"""<!DOCTYPE html>
   <div class="toolbar">
     <input id="searchVar" placeholder="Buscar variables...">
     <label class="chip" style="cursor:pointer"><input type="checkbox" id="filterDesign"> solo usadas en diseño</label>
+    <label class="chip" style="cursor:pointer" title="Se declaran pero no se usan ni modifican después"><input type="checkbox" id="filterUnused"> sin uso</label>
+    <label class="chip" style="cursor:pointer" title="Se usan/modifican en muchos módulos: cambiarlas es de alto impacto"><input type="checkbox" id="filterCritical"> críticas</label>
+    <label class="chip" style="cursor:pointer" title="Se usan pero no se crean en ningún módulo"><input type="checkbox" id="filterOrphan"> huérfanas</label>
   </div>
   <div class="detail" id="variablesView"></div>
 </div>
@@ -346,21 +349,34 @@ document.getElementById('search').oninput = renderModuleList;
 const VAR_BY_NAME = {}; DATA.variables.forEach(v => VAR_BY_NAME[v.name] = v);
 const HAS_LAYOUT = !!(DATA.layout && DATA.layout.usages && DATA.layout.usages.length);
 function designCell(v) {
-  if (v.used_in_layout)
-    return `<a class="tag-design" data-design="${esc(v.name)}" title="Ver hojas que la usan">Sí</a>`;
+  if (v.used_in_layout) {
+    const n = (v.layout_pages||[]).length;
+    return `<a class="tag-design" data-design="${esc(v.name)}" title="Ver hojas que la usan">Sí · ${n}</a>`;
+  }
   return HAS_LAYOUT ? '<span class="tag-nodesign">No</span>' : '<span class="tag-nodesign">—</span>';
 }
 function renderVariables() {
   const q = document.getElementById('searchVar').value.trim().toLowerCase();
   const rep = DATA.variable_report || {};
+  const inArr = (arr, n) => arr && arr.includes(n);
   const flag = n => [
-    rep.unused&&rep.unused.includes(n)?'<span class="pill">sin uso</span>':'',
-    rep.orphan&&rep.orphan.includes(n)?'<span class="pill">huérfana</span>':'',
-    rep.critical&&rep.critical.includes(n)?'<span class="pill">crítica</span>':'',
+    inArr(rep.unused, n)?'<span class="pill" title="Se declara pero no se usa ni modifica después">sin uso</span>':'',
+    inArr(rep.orphan, n)?'<span class="pill" title="Se usa pero no se crea en ningún módulo">huérfana</span>':'',
+    inArr(rep.critical, n)?'<span class="pill" title="Se usa/modifica en muchos módulos: cambiarla es de alto impacto">crítica</span>':'',
   ].join('');
   const onlyDesign = document.getElementById('filterDesign').checked;
+  const fUnused = document.getElementById('filterUnused').checked;
+  const fCritical = document.getElementById('filterCritical').checked;
+  const fOrphan = document.getElementById('filterOrphan').checked;
   let vars = DATA.variables.filter(v => !q || v.name.toLowerCase().includes(q));
   if (onlyDesign) vars = vars.filter(v => v.used_in_layout);
+  // Filtros de estado: si hay alguno activo, mostrar las que cumplan al menos uno.
+  if (fUnused || fCritical || fOrphan) {
+    vars = vars.filter(v =>
+      (fUnused && inArr(rep.unused, v.name)) ||
+      (fCritical && inArr(rep.critical, v.name)) ||
+      (fOrphan && inArr(rep.orphan, v.name)));
+  }
   const inDesign = DATA.variables.filter(v => v.used_in_layout).length;
   const rows = vars.map(v =>
     `<tr><td><a data-var="${esc(v.name)}">${esc(v.name)}</a></td>`+
@@ -381,7 +397,8 @@ function renderVariables() {
     a.onclick = () => openPages(a.dataset.design));
 }
 document.getElementById('searchVar').oninput = renderVariables;
-document.getElementById('filterDesign').onchange = renderVariables;
+['filterDesign','filterUnused','filterCritical','filterOrphan'].forEach(id =>
+  document.getElementById(id).onchange = renderVariables);
 
 // ---- Cuadro con las hojas que usan una variable ----
 function openPages(name) {
