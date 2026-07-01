@@ -92,6 +92,12 @@ def test_html_lineage_relevant_only_and_panzoom(workflow):
     # Modo enfoque (vecindario de un módulo) para flujos grandes.
     assert "buildFlowSubgraph" in html
     assert "focusModule" in html
+    # Columna de diseño: "Sí" abre un cuadro con las hojas.
+    assert "openPages" in html
+    assert "pagesOverlay" in html
+    # El badge de estadísticas usa "Cruces" (no "Joins").
+    assert "'Cruces'" in html
+    assert "'Joins'" not in html
 
 
 def test_graphml_is_valid_xml(workflow):

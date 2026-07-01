@@ -149,7 +149,7 @@ class PdfGenerator:
         story.append(Paragraph("Estadísticas", styles["H2b"]))
         rows = [
             ["Módulos", s.modules], ["Variables", s.variables], ["Reglas", s.rules],
-            ["Filtros", s.filters], ["Joins", s.joins], ["Scripts", s.scripts],
+            ["Filtros", s.filters], ["Cruces", s.joins], ["Scripts", s.scripts],
             ["Lookups", s.lookups], ["Conexiones", s.connections],
             ["Entradas", s.inputs], ["Salidas", s.outputs],
         ]
