@@ -80,6 +80,18 @@ def test_html_has_design_column_and_lineage(workflow):
     assert "lineageOverlay" in html
 
 
+def test_html_variable_state_filters(workflow):
+    html = HtmlGenerator().render(workflow)
+    # Filtros de estado en la barra de Variables.
+    assert 'id="filterUnused"' in html
+    assert 'id="filterCritical"' in html
+    assert 'id="filterOrphan"' in html
+    # La celda de diseño incluye el número de hojas.
+    assert "Sí · " in html
+    # Tooltip explicativo de "crítica".
+    assert "alto impacto" in html
+
+
 def test_html_lineage_relevant_only_and_panzoom(workflow):
     html = HtmlGenerator().render(workflow)
     # El linaje ya no dibuja nodos de tránsito.
