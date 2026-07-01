@@ -74,7 +74,7 @@ def _print_stats(workflow) -> None:
     print(f"  Variables     : {s.variables}")
     print(f"  Reglas        : {s.rules}")
     print(f"  Filtros       : {s.filters}")
-    print(f"  Joins         : {s.joins}")
+    print(f"  Cruces        : {s.joins}")
     print(f"  Scripts       : {s.scripts}")
     print(f"  Lookups       : {s.lookups}")
     print(f"  Conexiones    : {s.connections}")

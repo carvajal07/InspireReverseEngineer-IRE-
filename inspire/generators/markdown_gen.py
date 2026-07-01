@@ -40,7 +40,7 @@ class MarkdownGenerator:
         out(f"| Variables | {s.variables} |")
         out(f"| Reglas | {s.rules} |")
         out(f"| Filtros | {s.filters} |")
-        out(f"| Joins | {s.joins} |")
+        out(f"| Cruces | {s.joins} |")
         out(f"| Scripts | {s.scripts} |")
         out(f"| Lookups | {s.lookups} |")
         out(f"| Conexiones | {s.connections} |")

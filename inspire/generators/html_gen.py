@@ -135,8 +135,12 @@ _TEMPLATE = r"""<!DOCTYPE html>
   a { color: var(--accent); cursor: pointer; text-decoration: none; }
   .count { color: var(--muted); font-size: 12px; margin-left: 6px; }
   .tag-design { background: var(--integration); color:#0f172a; border-radius:6px;
-                padding:1px 6px; font-size:11px; font-weight:600; }
+                padding:1px 8px; font-size:11px; font-weight:600; cursor:pointer; text-decoration:none; }
+  .tag-design:hover { filter:brightness(1.1); }
   .tag-nodesign { color: var(--muted); font-size:11px; }
+  .pageslist { margin:0; padding-left:18px; }
+  .pageslist li { padding:2px 0; font-size:13px; }
+  .modal.modal-sm { width: min(560px, 92vw); height:auto; max-height:80vh; }
   /* Modal de linaje de variable */
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display:none;
              align-items:center; justify-content:center; z-index:50; }
@@ -224,6 +228,16 @@ _TEMPLATE = r"""<!DOCTYPE html>
   </div>
 </div>
 
+<div class="overlay" id="pagesOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-head">
+      <h2 id="pagesTitle">Hojas</h2>
+      <button class="modal-close" id="pagesClose">&times;</button>
+    </div>
+    <div class="modal-body" id="pagesBody"></div>
+  </div>
+</div>
+
 <script type="application/json" id="ire-data">__DATA__</script>
 <script>
 const DATA = JSON.parse(document.getElementById('ire-data').textContent);
@@ -237,7 +251,7 @@ document.getElementById('version').textContent = 'Inspire ' + (DATA.version||'?'
 const S = DATA.statistics || {};
 document.getElementById('stats').innerHTML = [
   ['Módulos',S.modules],['Variables',S.variables],['Reglas',S.rules],
-  ['Joins',S.joins],['Filtros',S.filters],['Scripts',S.scripts]
+  ['Cruces',S.joins],['Filtros',S.filters],['Scripts',S.scripts]
 ].map(([k,v]) => `<span class="stat">${k} <b>${v||0}</b></span>`).join('');
 
 // ---- Filtros de categoría ----
@@ -332,10 +346,8 @@ document.getElementById('search').oninput = renderModuleList;
 const VAR_BY_NAME = {}; DATA.variables.forEach(v => VAR_BY_NAME[v.name] = v);
 const HAS_LAYOUT = !!(DATA.layout && DATA.layout.usages && DATA.layout.usages.length);
 function designCell(v) {
-  if (v.used_in_layout) {
-    const n = (v.layout_pages||[]).length;
-    return `<span class="tag-design">Sí${n?` · ${n} pág`:''}</span>`;
-  }
+  if (v.used_in_layout)
+    return `<a class="tag-design" data-design="${esc(v.name)}" title="Ver hojas que la usan">Sí</a>`;
   return HAS_LAYOUT ? '<span class="tag-nodesign">No</span>' : '<span class="tag-nodesign">—</span>';
 }
 function renderVariables() {
@@ -365,9 +377,30 @@ function renderVariables() {
     `</tr></thead><tbody>${rows}</tbody></table>`;
   document.querySelectorAll('#variablesView a[data-var]').forEach(a =>
     a.onclick = () => openLineage(a.dataset.var));
+  document.querySelectorAll('#variablesView a[data-design]').forEach(a =>
+    a.onclick = () => openPages(a.dataset.design));
 }
 document.getElementById('searchVar').oninput = renderVariables;
 document.getElementById('filterDesign').onchange = renderVariables;
+
+// ---- Cuadro con las hojas que usan una variable ----
+function openPages(name) {
+  const v = VAR_BY_NAME[name]; if (!v) return;
+  const pages = (v.layout_pages||[]).slice().sort();
+  const paths = (v.layout_paths||[]).slice().sort();
+  document.getElementById('pagesTitle').textContent = 'Hojas que usan: ' + name;
+  document.getElementById('pagesBody').innerHTML =
+    `<div class="count" style="margin-bottom:8px">${pages.length} hoja(s) usan esta variable</div>`+
+    `<ul class="pageslist">${pages.map(p => `<li>${esc(p)}</li>`).join('')}</ul>`+
+    (paths.length ? `<div style="margin-top:10px"><b>Rutas en el diseño:</b><br>`+
+      paths.map(r => `<code>${esc(r)}</code>`).join('<br>')+`</div>` : '');
+  document.getElementById('pagesOverlay').classList.add('show');
+}
+document.getElementById('pagesClose').onclick = () =>
+  document.getElementById('pagesOverlay').classList.remove('show');
+document.getElementById('pagesOverlay').onclick = (e) => {
+  if (e.target.id === 'pagesOverlay') e.target.classList.remove('show');
+};
 
 // ---- Linaje de variable (grafo de recorrido) ----
 function safeId(s){ return 'v_'+String(s).replace(/\W/g,'_'); }
@@ -510,8 +543,10 @@ function mountPanZoom(view) {
   function fit() {
     const [gw, gh] = graphSize();
     const cw = view.clientWidth, ch = view.clientHeight;
-    // Para grafos enormes no encoger hasta un punto: mínimo legible y se panea.
-    scale = Math.max(0.18, Math.min(cw/gw, ch/gh) * 0.95) || 1;
+    // Escala inicial "decente": no ampliar grafos pequeños (máx 1x) ni encoger
+    // los enormes hasta un punto (mín legible y se panea).
+    const base = Math.min(cw/gw, ch/gh) * 0.95 || 1;
+    scale = Math.min(1, Math.max(0.18, base));
     tx = Math.max(0, (cw - gw*scale)/2); ty = Math.max(0, (ch - gh*scale)/2); apply();
   }
   function zoomAt(mx, my, factor) {
